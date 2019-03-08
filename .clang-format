@@ -1,5 +1,5 @@
 BasedOnStyle: "LLVM"
-PointerAlignment: "Middle"
+PointerAlignment: "Left"
 AccessModifierOffset: -4
 AllowShortIfStatementsOnASingleLine: false
 BreakBeforeBraces: "Linux"
