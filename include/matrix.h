@@ -117,6 +117,16 @@ public:
         return I;
     }
 
+    template <class Q = T>
+    typename std::enable_if<Rows == 1, Q>::type dot(const Matrix<T, 1, Cols>& other)
+    {
+        T res = T{};
+        for (int i = 0; i < Cols; ++i) {
+            res += data[Rows * i] * other(0, i);
+        }
+        return res;
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const Matrix<T, Rows, Cols>& matrix)
     {
         for (int i = 0; i < matrix.rows(); ++i) {
@@ -134,5 +144,8 @@ public:
 private:
     std::vector<T> data;
 };
+
+template <typename T, int Cols>
+using Vec = Matrix<T, 1, Cols>;
 
 #endif
