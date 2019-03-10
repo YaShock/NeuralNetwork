@@ -1,59 +1,111 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-#include <array>
+#include <exception>
 #include <iostream>
 #include <iterator>
+#include <random>
 #include <vector>
 
 // Row major matrix
-template <typename T, int Rows, int Cols>
+template <typename T>
 class Matrix
 {
 public:
     Matrix()
     {
-        data.resize(Rows * Cols);
     }
-    Matrix(T value)
+    Matrix(size_t rows, size_t cols) : mRows(rows), mCols(cols)
     {
-        data.resize(Rows * Cols, value);
+        mData.resize(rows * cols);
     }
-    Matrix(std::array<T, Rows * Cols> values)
+    Matrix(size_t rows, size_t cols, T value) : mRows(rows), mCols(cols)
     {
-        data.reserve(values.size());
-        std::copy(values.begin(), values.end(), std::back_inserter(data));
+        mData.resize(rows * cols);
+        std::fill(mData.begin(), mData.end(), value);
     }
-
-    int rows() const
+    Matrix(size_t rows, size_t cols, std::initializer_list<T> values) : mRows(rows), mCols(cols)
     {
-        return Rows;
-    }
-
-    int cols() const
-    {
-        return Cols;
+        if (values.size() != rows * cols) {
+            throw std::invalid_argument("Matrix ctor number of values and matrix size mismatch");
+        }
+        mData.resize(rows * cols);
+        std::copy(values.begin(), values.end(), mData.begin());
     }
 
-    T& operator()(int row, int col)
+    size_t rows() const
     {
-        return data[Cols * row + col];
+        return mRows;
     }
 
-    const T& operator()(int row, int col) const
+    size_t cols() const
     {
-        return data[Cols * row + col];
+        return mCols;
     }
 
-    template <int Cols2>
-    Matrix<T, Rows, Cols2> operator*(const Matrix<T, Cols, Cols2>& other)
+    Matrix<T> col(size_t c) const
     {
-        Matrix<T, Rows, Cols2> res;
-        for (int i = 0; i < Rows; ++i) {
-            for (int j = 0; j < Cols2; ++j) {
+        Matrix<T> res(mRows, 1);
+        for (size_t r = 0; r < mRows; ++r) {
+            res(r, 0) = mData[mCols * r + c];
+        }
+        return res;
+    }
+
+    Matrix<T> row(size_t r) const
+    {
+        Matrix<T> res(1, mCols);
+        for (size_t c = 0; c < mCols; ++c) {
+            res(0, c) = mData[mCols * r + c];
+        }
+        return res;
+    }
+
+    size_t size() const
+    {
+        return mRows * mCols;
+    }
+
+    T& operator()(size_t row, size_t col)
+    {
+        return mData[mCols * row + col];
+    }
+
+    const T& operator()(size_t row, size_t col) const
+    {
+        return mData[mCols * row + col];
+    }
+
+    template <typename Distribution, typename NumGen>
+    void randomize(Distribution distribution, NumGen numGen)
+    {
+        for (T& x : mData) {
+            x = distribution(numGen);
+        }
+    }
+
+    Matrix<T> transpose() const
+    {
+        Matrix<T> res(mCols, mRows);
+        for (size_t r = 0; r < mRows; ++r) {
+            for (size_t c = 0; c < mCols; ++c) {
+                res(c, r) = mData[mCols * r + c];
+            }
+        }
+        return res;
+    }
+
+    Matrix<T> operator*(const Matrix<T>& other) const
+    {
+        if (mCols != other.mRows) {
+            throw std::invalid_argument("Matrix operator+ bad matrix sizes");
+        }
+        Matrix<T> res(mRows, other.mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < other.mCols; ++j) {
                 T sum = T{};
-                for (int k = 0; k < Cols; ++k) {
-                    sum += data[Cols * i + k] * other(k, j);
+                for (size_t k = 0; k < mCols; ++k) {
+                    sum += mData[mCols * i + k] * other(k, j);
                 }
                 res(i, j) = sum;
             }
@@ -61,46 +113,145 @@ public:
         return res;
     }
 
-    Matrix<T, Rows, Cols>& operator*=(const Matrix<T, Cols, Cols>& other)
+    Matrix<T>& operator*=(const Matrix<T>& other)
     {
-        for (int i = 0; i < Rows; ++i) {
-            for (int j = 0; j < Cols; ++j) {
+        if (mCols != other.mRows) {
+            throw std::invalid_argument("Matrix operator+ bad matrix sizes");
+        }
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
                 T sum = T{};
-                for (int k = 0; k < Cols; ++k) {
-                    sum += data[Cols * i + k] * other(k, j);
+                for (size_t k = 0; k < mCols; ++k) {
+                    sum += mData[mCols * i + k] * other(k, j);
                 }
-                data[Cols * i + j] = sum;
+                mData[mCols * i + j] = sum;
             }
         }
         return *this;
     }
 
-    Matrix<T, Rows, Cols> operator+(const Matrix<T, Rows, Cols>& other)
+    Matrix<T> operator+(T scalar) const
     {
-        Matrix<T, Rows, Cols> res;
-        for (int i = 0; i < Rows; ++i) {
-            for (int j = 0; j < Cols; ++j) {
-                res(i, j) = data[Cols * i + j] + other(i, j);
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                res(i, j) += scalar;
             }
         }
         return res;
     }
 
-    Matrix<T, Rows, Cols>& operator+=(const Matrix<T, Rows, Cols>& other)
+    Matrix<T>& operator+=(T scalar)
     {
-        for (int i = 0; i < Rows; ++i) {
-            for (int j = 0; j < Cols; ++j) {
-                data[Cols * i + j] += other(i, j);
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                mData[mCols * i + j] += scalar;
             }
         }
         return *this;
     }
 
-    bool operator==(const Matrix<T, Rows, Cols>& other)
+    Matrix<T> operator*(T scalar) const
     {
-        for (int i = 0; i < Rows; ++i) {
-            for (int j = 0; j < Cols; ++j) {
-                if (data[Rows * i + j] != other.data[Rows * i + j]) {
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                res(i, j) *= scalar;
+            }
+        }
+        return res;
+    }
+
+    Matrix<T>& operator*=(T scalar)
+    {
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                mData[mCols * i + j] *= scalar;
+            }
+        }
+        return *this;
+    }
+
+    Matrix<T> operator+(const Matrix<T>& other) const
+    {
+        if (mRows != other.mRows || mCols != other.mCols) {
+            throw std::invalid_argument("Matrix operator+ bad matrix sizes");
+        }
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                res(i, j) = mData[mCols * i + j] + other(i, j);
+            }
+        }
+        return res;
+    }
+
+    Matrix<T>& operator+=(const Matrix<T>& other)
+    {
+        if (mRows != other.mRows || mCols != other.mCols) {
+            throw std::invalid_argument("Matrix operator+= bad matrix sizes");
+        }
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                mData[mCols * i + j] += other(i, j);
+            }
+        }
+        return *this;
+    }
+
+    Matrix<T> operator-(const Matrix<T>& other) const
+    {
+        if (mRows != other.mRows || mCols != other.mCols) {
+            throw std::invalid_argument("Matrix operator- bad matrix sizes");
+        }
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                res(i, j) = mData[mCols * i + j] - other(i, j);
+            }
+        }
+        return res;
+    }
+
+    Matrix<T>& operator-=(const Matrix<T>& other)
+    {
+        if (mRows != other.mRows || mCols != other.mCols) {
+            throw std::invalid_argument("Matrix operator-= bad matrix sizes");
+        }
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                mData[mCols * i + j] -= other(i, j);
+            }
+        }
+        return *this;
+    }
+
+    Matrix<T> hamadard(const Matrix<T>& other) const
+    {
+        if (mRows != other.mRows || mCols != other.mCols) {
+            throw std::invalid_argument("Matrix operator== bad matrix sizes");
+        }
+        Matrix<T> res(mRows, mCols);
+
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                res(i, j) = mData[mCols * i + j] * other(i, j);
+            }
+        }
+
+        return res;
+    }
+
+    bool operator==(const Matrix<T>& other)
+    {
+        if (mRows != other.mRows || mCols != other.mCols) {
+            return false;
+        }
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                if (mData[mRows * i + j] != other.mData[mRows * i + j]) {
                     return false;
                 }
             }
@@ -108,29 +259,31 @@ public:
         return true;
     }
 
-    static Matrix<T, Rows, Cols> Identity()
+    T dot(const Matrix<T>& other)
     {
-        Matrix<T, Rows, Cols> I(0);
-        for (int i = 0; i < std::min(Rows, Cols); ++i) {
+        if (mRows != 1 || other.mRows != 1) {
+            throw std::invalid_argument("Matrixes are not vectors (Rows are not 1");
+        }
+        T res = T{};
+        for (size_t i = 0; i < mCols; ++i) {
+            res += mData[mRows * i] * other(0, i);
+        }
+        return res;
+    }
+
+    static Matrix<T> Identity(size_t rows, size_t cols)
+    {
+        Matrix<T> I(rows, cols, 0);
+        for (size_t i = 0; i < std::min(rows, cols); ++i) {
             I(i, i) = 1;
         }
         return I;
     }
 
-    template <class Q = T>
-    typename std::enable_if<Rows == 1, Q>::type dot(const Matrix<T, 1, Cols>& other)
+    friend std::ostream& operator<<(std::ostream& os, const Matrix<T>& matrix)
     {
-        T res = T{};
-        for (int i = 0; i < Cols; ++i) {
-            res += data[Rows * i] * other(0, i);
-        }
-        return res;
-    }
-
-    friend std::ostream& operator<<(std::ostream& os, const Matrix<T, Rows, Cols>& matrix)
-    {
-        for (int i = 0; i < matrix.rows(); ++i) {
-            for (int j = 0; j < matrix.cols(); ++j) {
+        for (size_t i = 0; i < matrix.rows(); ++i) {
+            for (size_t j = 0; j < matrix.cols(); ++j) {
                 os << matrix(i, j);
                 if (j < matrix.cols() - 1) {
                     os << ' ';
@@ -142,10 +295,9 @@ public:
     }
 
 private:
-    std::vector<T> data;
+    size_t mRows;
+    size_t mCols;
+    std::vector<T> mData;
 };
-
-template <typename T, int Cols>
-using Vec = Matrix<T, 1, Cols>;
 
 #endif

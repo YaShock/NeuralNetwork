@@ -1,9 +1,10 @@
+cmake_minimum_required(VERSION 3.13)
 project(neural_network)
 
 # Specify default build type if none provided (before project() command)
 set(CMAKE_BUILD_TYPE Debug)
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
+	set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
 endif()
 
 # For generators with multiple configurations (like VS), only allow Debug and Release
