@@ -61,13 +61,16 @@ Matrix<double> parseMnistImages(const std::string& path)
     nRows = readUint32(file);
     nCols = readUint32(file);
 
+    std::cout << "NO images: " << nImages << std::endl;
+    std::cout << "Rows: " << nRows << " Cols: " << nCols << std::endl;
+
     Matrix<double> images(nCols * nRows, nImages);
 
     for (uint32_t j = 0; j < nImages; ++j) {
         for (uint32_t i = 0; i < nCols * nRows; ++i) {
             ValueType val = 0;
             file.read((char*)&val, 1);
-            images(i, j) = static_cast<double>(val);
+            images(i, j) = static_cast<double>(val) / 255;
         }
     }
 
@@ -92,6 +95,8 @@ Matrix<double> parseMnistLabels(const std::string& path)
     nLabels = readUint32(file);
 
     Matrix<double> labels(10, nLabels);
+
+    std::cout << "NO labels: " << nLabels << std::endl;
 
     for (uint32_t i = 0; i < nLabels; ++i) {
         uint32_t val = 0;

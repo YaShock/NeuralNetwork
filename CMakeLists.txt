@@ -2,9 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 project(neural_network)
 
 # Specify default build type if none provided (before project() command)
-set(CMAKE_BUILD_TYPE Debug)
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build (Debug or Release)" FORCE)
+  set(CMAKE_BUILD_TYPE Release)
 endif()
 
 # For generators with multiple configurations (like VS), only allow Debug and Release
@@ -22,6 +21,8 @@ endif()
 if (MSVC)
     set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} /W4 -Werror")
 endif()
+set(CMAKE_CXX_FLAGS_DEBUG "-g")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 file(GLOB_RECURSE sources      src/*.cpp)
