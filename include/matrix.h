@@ -92,19 +92,33 @@ public:
         return mData[idx];
     }
 
-    void fill(T value)
+    Matrix<T>& fill(T value)
     {
         for (T& x : mData) {
             x = value;
         }
+        return *this;
     }
 
     template <typename Func>
-    void apply(Func func)
+    Matrix<T>& apply(Func func)
     {
         for (T& x : mData) {
             x = func(x);
         }
+        return *this;
+    }
+
+    template <typename Func>
+    Matrix<T> transform(Func func) const
+    {
+        Matrix<T> res(mRows, mCols);
+        for (size_t i = 0; i < mRows; ++i) {
+            for (size_t j = 0; j < mCols; ++j) {
+                res(i, j) = func(mData[mCols * i + j]);
+            }
+        }
+        return res;
     }
 
     template <typename Pred>
