@@ -42,21 +42,22 @@ double reluPrime(double x)
     return x < 0 ? 0 : 1;
 }
 
-Network::Network(const std::initializer_list<size_t>& layers,
+Network::Network(const std::vector<size_t>& layers,
                  const std::vector<Activation>& activations)
 {
     if (activations.size() != layers.size() - 1 &&
         activations.size() != 1) {
         throw std::invalid_argument("Network ctor: number of activation functions must be 1 or equal to layers size - 1");
     }
+    if (layers.size() < 3) {
+        throw std::invalid_argument("Network ctor: number of layers must be at least 3");
+    }
     mActivations = activations;
 
     std::normal_distribution<DataType> distribution(0, 1);
     std::mt19937 numGenerator;
 
-    mLayers.resize(layers.size());
-    std::copy(layers.begin(), layers.end(), mLayers.begin());
-    mNumLayers = mLayers.size();
+    mNumLayers = layers.size();
     mWeights.reserve(mNumLayers - 1);
     mBiases.reserve(mNumLayers - 1);
     mWeightDeltas.reserve(mNumLayers - 1);
@@ -67,14 +68,14 @@ Network::Network(const std::initializer_list<size_t>& layers,
     };
 
     for (size_t i = 1; i < layers.size(); ++i) {
-        Matrix<DataType> w(mLayers[i], mLayers[i - 1]);
-        Matrix<DataType> wDelta(mLayers[i], mLayers[i - 1]);
+        Matrix<DataType> w(layers[i], layers[i - 1]);
+        Matrix<DataType> wDelta(layers[i], layers[i - 1]);
         w.apply(rng);
         mWeights.push_back(w);
         mWeightDeltas.push_back(wDelta);
 
-        ColVec<DataType> b(mLayers[i]);
-        ColVec<DataType> bDelta(mLayers[i]);
+        ColVec<DataType> b(layers[i]);
+        ColVec<DataType> bDelta(layers[i]);
         b.apply(rng);
         mBiases.push_back(b);
         mBiasDeltas.push_back(bDelta);
@@ -89,47 +90,54 @@ Network::Network(const std::vector<Matrix<DataType>>& weights,
         activations.size() != 1) {
         throw std::invalid_argument("Network ctor: number of activation functions must be 1 or equal to number of weights");
     }
+    if (weights.size() != biases.size()) {
+        throw std::invalid_argument("Network ctor: number of weights and number of biases must be equal");
+    }
+    if (weights.size() < 2) {
+        throw std::invalid_argument("Network ctor: number of weights/biases must be at least 2");
+    }
     mActivations = activations;
 
     mNumLayers = weights.size() + 1;
-
-    mLayers.resize(mNumLayers);
     mWeightDeltas.reserve(mNumLayers - 1);
     mBiasDeltas.reserve(mNumLayers - 1);
     mWeights = weights;
     mBiases = biases;
 
     for (size_t i = 0; i < mNumLayers - 1; ++i) {
-        size_t layerSize = weights[i].cols();
-        mLayers[i] = layerSize;
-
         Matrix<DataType> wDelta(mWeights[i].rows(), mWeights[i].cols());
         ColVec<DataType> bDelta(mBiases[i].rows(), mBiases[i].cols());
 
         mWeightDeltas.push_back(wDelta);
         mBiasDeltas.push_back(bDelta);
     }
-    mLayers.back() = mWeights.back().rows();
 }
 
-void Network::train(const Matrix<DataType>& samples, const Matrix<DataType>& labels, size_t batchSize, size_t epochs, double learningRate,
-                    const Matrix<DataType>& testSamples, const Matrix<DataType>& testLabels)
+double Network::train(const Matrix<DataType>& samples,
+                      const Matrix<DataType>& labels,
+                      size_t batchSize, size_t epochs, double learningRate,
+                      const Matrix<DataType>& testSamples,
+                      const Matrix<DataType>& testLabels,
+                      bool shuffle)
 {
     if (samples.cols() != labels.cols()) {
         throw std::invalid_argument(STR("Network train: number of samples and number of labels mismatch ", samples.cols(), " ", labels.cols()));
     }
-    if (samples.rows() != mLayers[0]) {
-        throw std::invalid_argument(STR("Network train: input size and first layer size mismatch: ", samples.rows(), " ", mLayers[0]));
+    if (samples.rows() != mWeights[0].cols()) {
+        throw std::invalid_argument(STR("Network train: input size and first layer size mismatch: ", samples.rows(), " ", mWeights[0].cols()));
     }
-    if (labels.rows() != mLayers.back()) {
+    if (labels.rows() != mWeights.back().rows()) {
         throw std::invalid_argument("Network train: labels size and last layer size mismatch: ");
     }
     size_t numBatches = samples.cols() / batchSize;
+    double score = 0;
+    auto sSamples = samples;
+    auto sLabels = labels;
 
     for (size_t i = 0; i < epochs; ++i) {
-        auto sSamples = samples;
-        auto sLabels = labels;
-        shuffleSamples(sSamples, sLabels);
+        if (shuffle) {
+            shuffleSamples(sSamples, sLabels);
+        }
         for (size_t j = 0; j < numBatches; ++j) {
             std::vector<std::vector<Matrix<DataType>>> batchDeltasW(batchSize);
             std::vector<std::vector<ColVec<DataType>>> batchDeltasB(batchSize);
@@ -144,8 +152,9 @@ void Network::train(const Matrix<DataType>& samples, const Matrix<DataType>& lab
             updateWeights(batchSize, learningRate, batchDeltasW, batchDeltasB);
         }
         std::cout << "Epoch " << i + 1 << ": ";
-        validate(testSamples, testLabels);
+        score = validate(testSamples, testLabels);
     }
+    return score;
 }
 
 void Network::shuffleSamples(Matrix<DataType>& samples, Matrix<DataType>& labels)
@@ -170,7 +179,8 @@ void Network::shuffleSamples(Matrix<DataType>& samples, Matrix<DataType>& labels
     labels = std::move(shuffledLabels);
 }
 
-void Network::validate(const Matrix<DataType>& testSamples, const Matrix<DataType>& testLabels)
+double Network::validate(const Matrix<DataType>& testSamples,
+                         const Matrix<DataType>& testLabels)
 {
     size_t all = testSamples.cols();
     size_t correct = 0;
@@ -187,6 +197,7 @@ void Network::validate(const Matrix<DataType>& testSamples, const Matrix<DataTyp
         }
     }
     std::cout << correct << " / " << all << std::endl;
+    return (double)correct / (double)all;
 }
 
 Matrix<DataType> Network::predict(const Matrix<DataType>& sample)
@@ -202,7 +213,8 @@ Matrix<DataType> Network::feedforward(Matrix<DataType> input)
     return input;
 }
 
-void Network::backpropagation(const ColVec<DataType>& sample, const ColVec<DataType>& label)
+void Network::backpropagation(const ColVec<DataType>& sample,
+                              const ColVec<DataType>& label)
 {
     // We don't need the first Z, but it will simplify indexing
     std::vector<Matrix<DataType>> z(mNumLayers);
@@ -232,7 +244,8 @@ void Network::backpropagation(const ColVec<DataType>& sample, const ColVec<DataT
     }
 }
 
-void Network::updateWeights(size_t batchSize, double eta, const std::vector<std::vector<Matrix<DataType>>>& batchDeltasW,
+void Network::updateWeights(size_t batchSize, double eta,
+                            const std::vector<std::vector<Matrix<DataType>>>& batchDeltasW,
                             const std::vector<std::vector<ColVec<DataType>>>& batchDeltasB)
 {
     for (size_t i = 0; i < mNumLayers - 1; ++i) {
